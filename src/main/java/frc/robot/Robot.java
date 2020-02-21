@@ -3,6 +3,7 @@ package frc.robot;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.command.Scheduler;
 import edu.wpi.cscore.UsbCamera;
+import edu.wpi.first.wpilibj.shuffleboard.*;
 import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.NetworkTableEntry;
@@ -18,7 +19,7 @@ public class Robot extends TimedRobot {
     private NetworkTableEntry blockX;
     private NetworkTableEntry blockY;
 
-    private TrackObject trackObject;
+    private Turn turn;
 
     public Robot() {
         super(0.06);
@@ -34,10 +35,10 @@ public class Robot extends TimedRobot {
         NetworkTable pie = inst.getTable("pie");
         blockX = pie.getEntry("blockX");
         blockY = pie.getEntry("blockY");
-
-        trackObject = new TrackObject();
       
         Subsystems.driveBase.cheesyDrive.setSafetyEnabled(false);
+
+        Shuffleboard.getTab("pid").add("Turn", turn).withWidget(BuiltInWidgets.kPIDCommand);
     }
 
     public void disabledInit() {
@@ -53,8 +54,6 @@ public class Robot extends TimedRobot {
     public void autonomousInit() {
         System.out.println("Autonomous Initalized");
         Scheduler.getInstance().removeAll();
-
-        trackObject.start();
     }
 
     public void autonomousPeriodic() {
