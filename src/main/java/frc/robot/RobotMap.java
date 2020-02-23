@@ -7,7 +7,6 @@ public class RobotMap {
 
     public static double speedCap = 0.25;
     public static double rotationCap = 0.5;
-    public static double wheelDiameter;
 
     public static boolean isFastMode = false;
     public static boolean isFirstCamera = true;
@@ -17,23 +16,6 @@ public class RobotMap {
     public static boolean isHelixToggled = false;
     public static boolean isClimberBrakeToggled = false;
     public static boolean isCellyToggled = false;
-
-    // Drive base ports
-
-    public static int leftFrontFollower;
-    public static int leftMiddleMaster;
-    public static int leftRearFollower;
-    public static int rightFrontFollower;
-    public static int rightMiddleMaster;
-    public static int rightRearFollower;
-
-    // Subsystem motor ports
-
-    public static int leftFlywheel;
-    public static int rightFlywheel;
-    public static int helicase;
-    public static int intakeMotor;
-    public static int climberWinch;
 
     // Double solenoid ports
 
@@ -57,78 +39,13 @@ public class RobotMap {
     public static final int driverXboxController = 1;
     public static final int operatorXboxController = 2;
 
-
-    public enum BotNames {
-        COMPETITION, PRACTICE, TOASTER
-    }
-
-    /**
-     * <p><code>"toaster"</code>, <code>"practice"</code>, or <code>"comp"</code>.</p>
-     * Please note that this is case sensitive.
-     */
-    public static BotNames botName = BotNames.PRACTICE;
-
-    /**
-     * Sets the bot's ports based off of the bot's name. You will still have to comment out code in DriveBase.java that determines whether your motors are victors or talons.
-     * @param bot The name of the bot. <code>"toaster"</code>, <code>"practice"</code>, or <code>"comp"</code>.
-     */
-    public static void setBot(BotNames bot) {
-        botName = bot;
-        if (bot == BotNames.TOASTER) {
-            leftFrontFollower = 43;
-            leftMiddleMaster = 18;
-            leftRearFollower = 2;
-            rightFrontFollower = 60;
-            rightMiddleMaster = 14;
-            rightRearFollower = 57;
-            wheelDiameter = 8;
-
-            //doesn't really exist, assign values
-            leftFlywheel = 422;
-            rightFlywheel = 422;
-            helicase = 422;
-            intakeMotor = 422;
-            cellStopIn = 1;
-            cellStopOut = 2;
-            intakeExtensionIn = 3;
-            intakeExtensionOut = 4;
-        } else if (bot == BotNames.PRACTICE) {
-            leftFrontFollower = 3;
-            leftMiddleMaster = 34;
-            leftRearFollower = 6;
-            rightFrontFollower = 5;
-            rightMiddleMaster = 31;
-            rightRearFollower = 4;
-            wheelDiameter = 6;
-
-            leftFlywheel = 1;
-            rightFlywheel = 2;
-            helicase = 33;
-            intakeMotor = 23;
-            cellStopIn = 0;
-            cellStopOut = 7;
-            intakeExtensionIn = 1;
-            intakeExtensionOut = 6;
-        } else if (bot == BotNames.COMPETITION) {
-            leftFrontFollower = 7;
-            leftMiddleMaster = 29;
-            leftRearFollower = 8;
-            rightFrontFollower = 9;
-            rightMiddleMaster = 10;
-            rightRearFollower = 45;
-            wheelDiameter = 6;
-
-            //! ->
-            leftFlywheel = 422;
-            rightFlywheel = 422;
-            helicase = 422;
-            intakeMotor = 422;
-            cellStopIn = 1;
-            cellStopOut = 2;
-            intakeExtensionIn = 3;
-            intakeExtensionOut = 4;
-        }
-    }
+    public static int leftFrontFollower = 43;
+    public static int leftMiddleMaster = 18;
+    public static int leftRearFollower = 2;
+    public static int rightFrontFollower = 60;
+    public static int rightMiddleMaster = 14;
+    public static int rightRearFollower = 57;
+    public static int wheelDiameter = 8;
 
     /**
      * @return The speed cap for the drive base in teleop.

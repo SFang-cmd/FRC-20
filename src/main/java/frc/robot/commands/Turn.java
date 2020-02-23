@@ -1,12 +1,12 @@
 package frc.robot.commands;
 
-import edu.wpi.first.wpilibj.command.Command;
 import frc.robot.subsystems.Subsystems;
+import edu.wpi.first.wpilibj.command.PIDCommand;
 
 /**
  * A Command to turn the bot a set number of degrees.
  */
-public class Turn extends Command {
+public class Turn extends PIDCommand {
 
     private double degrees;
     private double speed;
@@ -18,12 +18,28 @@ public class Turn extends Command {
      * @param Speed The speed at which to turn (0 to 1). Speeds over x are not recommended for maximal accuracy.
      * @param Timeout The timeout, in seconds.
      */
-    public Turn(double Degrees, double Speed, double Timeout) {
-        super("Turn");
+    //private double P = 1;
+    //private double I = 1;
+    //private double D = 1;
+    //private double integral, derivative, previousError = 0;
+    //private double PID;
+
+    public Turn(double Degrees, double Speed, double Timeout){
+        super("Turn", 4, 2, 2);
         requires(Subsystems.driveBase);
         degrees = Degrees;
         speed = Speed;
         setTimeout(Timeout);
+    }
+
+    @Override
+    protected double returnPIDInput() {
+        return Subsystems.driveBase.getGyroAngle();
+    }
+
+    @Override
+    protected void usePIDOutput(double output) {
+        speed = output;
     }
 
     public void initialize() {
@@ -31,6 +47,15 @@ public class Turn extends Command {
         Subsystems.driveBase.zeroGyroAngle();
         Subsystems.driveBase.zeroEncoderPosition();
     }
+
+    // public double PID(){
+    //     double error = degrees - Subsystems.driveBase.getGyroAngle(); // Error = Target - Actual
+    //     this.integral += (error*.02); // Integral is increased by the error*time (which is .02 seconds using normal IterativeRobot)
+    //     derivative = (error - this.previousError) / .02;
+    //     this.previousError = error;
+    //     this.PID = P * error + I * this.integral + D * derivative;
+    //     return PID / degrees;
+    // }
 
     public void execute() {
         if ((degrees > 0) && !isCorrecting) {

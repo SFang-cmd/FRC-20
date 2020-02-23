@@ -5,6 +5,7 @@ import edu.wpi.first.wpilibj.command.Scheduler;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.cscore.UsbCamera;
+import edu.wpi.first.wpilibj.shuffleboard.*;
 import edu.wpi.first.cameraserver.CameraServer;
 import frc.robot.userinterface.UserInterface;
 import frc.robot.subsystems.Subsystems;
@@ -13,7 +14,6 @@ import frc.robot.commands.autonomous.*;
 import io.github.pseudoresonance.pixy2api.*;
 import edu.wpi.cscore.VideoSink;
 import edu.wpi.cscore.VideoSource;
-import edu.wpi.first.wpilibj.shuffleboard.*;
 import java.util.Map;
 
 /**
@@ -34,33 +34,25 @@ public class Robot extends TimedRobot {
     private NetworkTableEntry driverControllerWidget;
     private NetworkTableEntry operatorControllerWidget;
 
-    private NetworkTableEntry cellCountWidget;
-    private NetworkTableEntry overflowWidget;
-
     private NetworkTableEntry leftEncoders;
     private NetworkTableEntry rightEncoders;
     private NetworkTableEntry gyroWidget;
-    private NetworkTableEntry intakeBeamBreakWidget;
 
     private NetworkTableEntry blockX;
-
-    private boolean oldBroken = false;
 
     //SENSORS/CAMERAS
 
     private VideoSink switchedCamera;
     private UsbCamera camera1;
     private UsbCamera camera2;
+    private Turn turn;
 
     public Robot() {
         super(0.06);
     }
 
     public void robotInit() {
-        //set which bot
-        RobotMap.setBot(RobotMap.BotNames.PRACTICE);
-        System.out.println("Initializing " + RobotMap.botName + "\n");
-
+        System.out.println("Initializing toaster");
         Subsystems.compressor.start();
 
         //camera setup
@@ -79,6 +71,10 @@ public class Robot extends TimedRobot {
         autonomous = new AutonomousSwitch(AutonomousSwitch.StartingPosition.CENTER, 0, false, AutonomousSwitch.IntakeSource.TRENCH, false); //default
         //setup Shuffleboard interface
         layoutShuffleboard();
+      
+        Subsystems.driveBase.cheesyDrive.setSafetyEnabled(false);
+
+        Shuffleboard.getTab("PID").add("Turn", turn).withWidget(BuiltInWidgets.kPIDCommand);
     }
 
     public void disabledInit() {
@@ -131,47 +127,11 @@ public class Robot extends TimedRobot {
         //Driver controls
         UserInterface.driverController.LB.whenPressed(new SwitchCameras(switchedCamera, camera1, camera2)); //LBump: Toggle cameras
         UserInterface.driverController.RB.whenPressed(new SwitchGears()); //RBump: Toggle slow/fast mode
-
-        //Operator controls
-        UserInterface.operatorController.RB.whenPressed(new FlywheelShoot());//RTrigger: starts the fly shoot command
-        UserInterface.operatorController.RB.whenReleased(new FlywheelShootStop());
     }
 
     public void teleopPeriodic() {
         Scheduler.getInstance().run();
         printDataToShuffleboard();
-        counting();
-
-        //Intake cells in/out
-        if (UserInterface.operatorController.getRightJoystickY() >= 0.4) {
-            Subsystems.intake.setIntakeMotors(0.8);
-            if (!RobotMap.isIntakeDown) {
-                System.out.println("down");
-                Subsystems.intake.intakeExtend();
-                RobotMap.isIntakeDown = true;
-            }
-        } else if (UserInterface.operatorController.getRightJoystickY() <= -0.4) {
-            Subsystems.intake.setIntakeMotors(-0.8);
-            if (RobotMap.isIntakeDown) {
-                Subsystems.intake.intakeRetract();
-			    RobotMap.isIntakeDown = false;
-            }
-        } else {
-            Subsystems.intake.stopIntakeMotors();
-            if (RobotMap.isIntakeDown) {
-                Subsystems.intake.intakeRetract();
-			    RobotMap.isIntakeDown = false;
-            }
-        }
-
-        //moves helix in/out 
-        if (UserInterface.operatorController.getRightJoystickY() >= 0.4){
-            Subsystems.helix.setHelixMotors(0.8);
-        } else if (UserInterface.operatorController.getPOVAngle() == 180) {
-            Subsystems.helix.setHelixMotors(-0.8);
-        } else if (!UserInterface.operatorController.RB.get()) {
-            Subsystems.helix.setHelixMotors(0);
-        }
     }
 
     /**
@@ -231,25 +191,11 @@ public class Robot extends TimedRobot {
         //Setup match play options and layouts
         // ***** ADD FMS INFO WIDGET AND CAMERA WIDGET MANUALLY *****
 
-        //cell count
-        cellCountWidget = matchPlayTab.add("Power cell count", 3)
-            .withWidget(BuiltInWidgets.kDial)
-            .withProperties(Map.of("min", 0, "max", 5))
-            .withPosition(1, 0)
-            .withSize(2, 2).getEntry();
-        overflowWidget = matchPlayTab.add("Ball overflow", false)
-            .withWidget(BuiltInWidgets.kBooleanBox)
-            .withProperties(Map.of("color when false", "#7E8083", "color when true", "#8b0000"))
-            .withPosition(1, 2)
-            .withSize(2, 1).getEntry();
-
         //sensor values
         leftEncoders = sensorValueLayout.add("Left encoders", 404).getEntry();
         rightEncoders = sensorValueLayout.add("Right encoders", 404).getEntry();
         gyroWidget = sensorValueLayout.add("Gyro", 404).getEntry();
-        intakeBeamBreakWidget = sensorValueLayout.add("Intake beam break", false)
-            .withProperties(Map.of("color when false", "#7E8083", "color when true", "#ffe815")).getEntry();
-
+       
         //vision
         blockX = visionLayout.add("blockX", 404).getEntry();
 
@@ -330,15 +276,10 @@ public class Robot extends TimedRobot {
         operatorControllerWidget.setBoolean(Math.abs(UserInterface.operatorController.getLeftJoystickX()) > 0.1 || Math.abs(UserInterface.operatorController.getLeftJoystickY()) > 0.1 ||
         Math.abs(UserInterface.operatorController.getRightJoystickX()) > 0.1 || Math.abs(UserInterface.operatorController.getRightJoystickY()) > 0.1);
 
-        //cell count
-        cellCountWidget.setDouble(Subsystems.helix.cellCount);
-        overflowWidget.setBoolean(Subsystems.helix.cellCount > 5);
-
         //sensor values
         leftEncoders.setDouble(Subsystems.driveBase.getLeftPosition());
         rightEncoders.setDouble(Subsystems.driveBase.getRightPosition());
         gyroWidget.setDouble(Subsystems.driveBase.getGyroAngle());
-        intakeBeamBreakWidget.setBoolean(Subsystems.helix.getCellEntered());
 
         //pixy values
         try {
@@ -357,14 +298,5 @@ public class Robot extends TimedRobot {
         // } else {
         //     Subsystems.climber.setClimberMotors(0);
         // }
-    }
-
-    private void counting() {
-        boolean updatedBroken = Subsystems.helix.getCellEntered();
-
-        if (updatedBroken == true && updatedBroken != oldBroken) {
-            Subsystems.helix.cellCount++;
-        }
-        oldBroken = updatedBroken;
     }
 }
