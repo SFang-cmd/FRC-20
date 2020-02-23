@@ -10,6 +10,4 @@ public class Subsystems {
     // public static final Climber climber = new Climber();
     public static final Compressor compressor = new Compressor();
     public static final DriveBase driveBase = new DriveBase();
-    public static final Pixy pixy = new Pixy();
-
 }

@@ -55,15 +55,6 @@ public class Robot extends TimedRobot {
         System.out.println("Initializing toaster");
         Subsystems.compressor.start();
 
-        //camera setup
-        camera1 = CameraServer.getInstance().startAutomaticCapture(0);
-        camera2 = CameraServer.getInstance().startAutomaticCapture(1);
-        camera1.setConnectionStrategy(VideoSource.ConnectionStrategy.kKeepOpen);
-        camera2.setConnectionStrategy(VideoSource.ConnectionStrategy.kKeepOpen);
-
-        switchedCamera = CameraServer.getInstance().addSwitchedCamera("Camera feeds");
-        switchedCamera.setSource(camera1);
-
         //drive settings
         Subsystems.driveBase.cheesyDrive.setSafetyEnabled(false);
         RobotMap.setSpeedAndRotationCaps(0.3, 0.5);
@@ -122,10 +113,7 @@ public class Robot extends TimedRobot {
         System.out.println("TeleOp Initalized");
         Scheduler.getInstance().removeAll();
 
-        switchedCamera.setSource(camera1);
-
         //Driver controls
-        UserInterface.driverController.LB.whenPressed(new SwitchCameras(switchedCamera, camera1, camera2)); //LBump: Toggle cameras
         UserInterface.driverController.RB.whenPressed(new SwitchGears()); //RBump: Toggle slow/fast mode
     }
 
@@ -280,15 +268,6 @@ public class Robot extends TimedRobot {
         leftEncoders.setDouble(Subsystems.driveBase.getLeftPosition());
         rightEncoders.setDouble(Subsystems.driveBase.getRightPosition());
         gyroWidget.setDouble(Subsystems.driveBase.getGyroAngle());
-
-        //pixy values
-        try {
-            Pixy2CCC.Block block = Subsystems.pixy.getBiggestBlock();
-            blockX.setDouble(block.getX());
-        } catch (java.lang.NullPointerException e) {
-            blockX.setDouble(-404);
-            return;
-        }
 
         //moves robot up and down during climbing
         // if (UserInterface.operatorController.getLeftJoystickY() >= 0.4){
