@@ -2,6 +2,7 @@ package frc.robot;
 
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.command.Scheduler;
+import edu.wpi.first.wpilibj.shuffleboard.*;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.cscore.UsbCamera;
@@ -13,7 +14,7 @@ import frc.robot.commands.autonomous.*;
 import io.github.pseudoresonance.pixy2api.*;
 import edu.wpi.cscore.VideoSink;
 import edu.wpi.cscore.VideoSource;
-import edu.wpi.first.wpilibj.shuffleboard.*;
+
 import java.util.Map;
 
 /**
@@ -29,7 +30,6 @@ public class Robot extends TimedRobot {
     private NetworkTableEntry pushRobotChooser;
     private SendableChooser<AutonomousSwitch.IntakeSource> intakeChooser;
     private NetworkTableEntry autoLabel;
-    private NetworkTableEntry enableVisionChooser;
 
     private NetworkTableEntry driverControllerWidget;
     private NetworkTableEntry operatorControllerWidget;
@@ -41,19 +41,10 @@ public class Robot extends TimedRobot {
     private NetworkTableEntry rightEncoders;
     private NetworkTableEntry gyroWidget;
     private NetworkTableEntry intakeBeamBreakWidget;
-    private NetworkTableEntry isSpeedModeWidget;
-    private NetworkTableEntry isCamera1Widget;
-    private NetworkTableEntry isIntakeUpWidget;
 
     private NetworkTableEntry blockX;
 
-    //TELEOP
-
-    private boolean oldBroken = false;
-    private boolean in = false;
-    private int counter = 0;
-
-    private boolean oldTriggerOn = false;
+    private int cellCount = 3; //replace with var from helix
 
     //SENSORS/CAMERAS
 
@@ -83,15 +74,7 @@ public class Robot extends TimedRobot {
         Subsystems.driveBase.cheesyDrive.setSafetyEnabled(false);
         RobotMap.setSpeedAndRotationCaps(0.3, 0.5);
 
-        //driver controls (buttons)
-        UserInterface.driverController.LB.whenPressed(new SwitchCameras(switchedCamera, camera1, camera2)); //LBump: Toggle cameras
-        UserInterface.driverController.RB.whenPressed(new SwitchGears()); //RBump: Toggle slow/fast mode
 
-        //operator controls (buttons)
-        UserInterface.operatorController.X.whenPressed(new IntakeExtendRetract()); //X: Toggles extend/retract intake
-
-        autonomous = new AutonomousSwitch(AutonomousSwitch.StartingPosition.CENTER, 0, false, AutonomousSwitch.IntakeSource.TRENCH, false); //default
-        //setup Shuffleboard interface
         layoutShuffleboard();
     }
 
@@ -101,100 +84,74 @@ public class Robot extends TimedRobot {
     }
 
     public void disabledPeriodic() {
-        Scheduler.getInstance().run();
         printDataToShuffleboard();
+        Scheduler.getInstance().run();
 
-        if (AutonomousSwitch.doChoicesWork(positionChooser.getSelected(), intakeChooser.getSelected())) {
-            //update auto if changed
-            if (!autonomous.matchesSettings(positionChooser.getSelected(), delayChooser.getDouble(0), pushRobotChooser.getBoolean(false), intakeChooser.getSelected(), enableVisionChooser.getBoolean(false))) {
-                autonomous = new AutonomousSwitch(positionChooser.getSelected(), delayChooser.getDouble(0), pushRobotChooser.getBoolean(false), intakeChooser.getSelected(), enableVisionChooser.getBoolean(false));
-                autoLabel.setString(autonomous.description);
-            }
-        } else {
-            autoLabel.setString("Options don't work. Defaulting to last chosen autonomous (SP=" + autonomous.startingPosition + ", D=" + Math.round(autonomous.delay*100.0)/100.0 +
-            ", PR=" + autonomous.pushRobot + ", IS=" + autonomous.intakeSource + ").");
-        }
     }
 
     public void autonomousInit() {
         System.out.println("Autonomous Initalized");
         Scheduler.getInstance().removeAll();
 
-        if (AutonomousSwitch.doChoicesWork(positionChooser.getSelected(), intakeChooser.getSelected())) {
-            //update auto
-            autonomous = new AutonomousSwitch(positionChooser.getSelected(), delayChooser.getDouble(0), pushRobotChooser.getBoolean(false), intakeChooser.getSelected(), enableVisionChooser.getBoolean(false));
-            autoLabel.setString(autonomous.description);
-        } else {
-            autoLabel.setString("Options don't work. Defaulting to last chosen autonomous (SP=" + autonomous.startingPosition + ", D=" + Math.round(autonomous.delay*100.0)/100.0 +
-            ", PR=" + autonomous.pushRobot + ", IS=" + autonomous.intakeSource + ").");
-        }
         autonomous.start();
     }
 
     public void autonomousPeriodic() {
         Scheduler.getInstance().run();
         printDataToShuffleboard();
-        countingAuto();
     }
 
     public void teleopInit() {
         System.out.println("TeleOp Initalized");
         Scheduler.getInstance().removeAll();
 
+        UserInterface.driverController.X.whileHeld(new TrackObject()); //TODO: not this
+
         switchedCamera.setSource(camera1);
-        RobotMap.isFirstCamera = true;
+
+        //Driver controls
+        //LJoy: Velocity
+        //RJoy: Rotation
+        //POV
+        UserInterface.driverController.A.whileHeld(new AutoIntake());//A: Intake + vision takeover
+        //B
+        //X
+        //Y
+        UserInterface.driverController.LB.whenPressed(new SwitchCameras(switchedCamera, camera1, camera2)); //LBump: Toggle cameras
+        UserInterface.driverController.RB.whenPressed(new SwitchGears()); //RBump: Toggle slow/fast mode
+        //LTrig
+        //RTrig
+        //LSmall
+        //RSmall
+
+        //Operator controls
+        //LJoy: Intake cells in/out
+        //RJoy: Helix move forwards/backwards
+        //POV
+        UserInterface.operatorController.A.whenPressed(new IntakeExtendRetract()); //A: Intake extend/retract
+        //B
+        UserInterface.operatorController.X.whenPressed(new StartStopFlywheel()); //X: Flywheel on/off
+        // UserInterface.operatorController.Y.whenPressed(new ToggleClimberBrake()); //Y: Toggle climber brake
+        //LBump
+        // UserInterface.operatorController.RB.whenPressed(new ExtendClimber()); //RBump: Extend climber
+        //LTrig
+        //RTrig: Retract climber
+        //LSmall
+        //RSmall
     }
 
     public void teleopPeriodic() {
         Scheduler.getInstance().run();
         printDataToShuffleboard();
-        countingTeleop();
 
-        //wait for intake->helix sequence
-        if (in && counter < 13) {
-            counter++;
-        } else if (in && counter >= 12) {
-            in = false;
-            counter = 0;
-        }
-
-        //intake cells in/out
-        if (UserInterface.operatorController.getRightJoystickY() >= 0.4) {
-            Subsystems.intake.setIntakeMotors(0.8);
-        } else if (UserInterface.operatorController.getRightJoystickY() <= -0.4) {
-            Subsystems.intake.setIntakeMotors(-0.8);
+        //Intake cells in/out
+        if (UserInterface.operatorController.getLeftJoystickY() >= 0.4) {
+            Subsystems.intake.setIntakeMotors(0.7);
+        } else if (UserInterface.operatorController.getLeftJoystickY() <= -0.4) {
+            Subsystems.intake.setIntakeMotors(-0.7);
         } else {
             Subsystems.intake.stopIntakeMotors();
         }
-
-        //flyboi control
-        boolean isTriggerOn = UserInterface.operatorController.getRightTrigger() >= 0.4;
-        if (isTriggerOn && !oldTriggerOn) { //if trigger was just pressed
-            Scheduler.getInstance().add(new Shoot());
-        } else if (!isTriggerOn && oldTriggerOn) { //if trigger was just released
-            Scheduler.getInstance().add(new ShootStop());
-        }
-        oldTriggerOn = isTriggerOn;
-
-        //moves helix in/out
-        if (UserInterface.operatorController.getPOVAngle() == 0) {
-            Subsystems.helix.setHelixMotors(0.8);
-        } else if (in) {
-            Subsystems.helix.setHelixMotors(0.3);
-        } else if (UserInterface.operatorController.getPOVAngle() == 180) {
-            Subsystems.helix.setHelixMotors(-0.8);
-        } else if (!isTriggerOn) {
-            Subsystems.helix.setHelixMotors(0);
-        }
-
-        //moves robot up and down during climbing
-        // if (UserInterface.operatorController.getLeftJoystickY() >= 0.4){
-        //     Subsystems.climber.setClimberMotors(0.8);
-        // } else if (UserInterface.operatorController.getLeftJoystickY() <= -0.4) {
-        //     Subsystems.climber.setClimberMotors(-0.8);
-        // } else {
-        //     Subsystems.climber.setClimberMotors(0);
-        // }
     }
 
     /**
@@ -215,7 +172,7 @@ public class Robot extends TimedRobot {
             .withProperties(Map.of("number of columns", 4, "number of rows", 3))
             .withPosition(6, 1)
             .withSize(3, 2);
-        ShuffleboardLayout visionLayout = matchPlayTab.getLayout("vision", BuiltInLayouts.kList)
+        ShuffleboardLayout pixyLayout = matchPlayTab.getLayout("pixy", BuiltInLayouts.kList)
             .withPosition(0, 0)
             .withSize(1, 3);
 
@@ -240,8 +197,6 @@ public class Robot extends TimedRobot {
         autonomousChooserLayout.add("Intake source", intakeChooser)
             .withWidget(BuiltInWidgets.kComboBoxChooser);
         autoLabel = autonomousChooserLayout.add("Current autonomous", "Starts in center, shoots after a delay of 0, doesn't push robot, intakes from trench").getEntry();
-        enableVisionChooser = autonomousChooserLayout.add("Enable vision mode?", false)
-            .withWidget(BuiltInWidgets.kToggleButton).getEntry();
 
         //Setup controller ID in pre-match
         driverControllerWidget = controllerIDLayout.add("Driver Controller", false)
@@ -253,10 +208,10 @@ public class Robot extends TimedRobot {
 
         //Setup match play options and layouts
         // ***** ADD FMS INFO WIDGET MANUALLY *****
-        // matchPlayTab.add(SendableCameraWrapper.wrap(camera1)) //if 1 camera used
-        //     .withWidget(BuiltInWidgets.kCameraStream)
-        //     .withPosition(3, 0)
-        //     .withSize(3, 3);
+        matchPlayTab.add(SendableCameraWrapper.wrap(switchedCamera.getSource())) //see if this works
+            .withWidget(BuiltInWidgets.kCameraStream)
+            .withPosition(3, 0)
+            .withSize(3, 3);
 
         //cell count
         cellCountWidget = matchPlayTab.add("Power cell count", 3)
@@ -275,17 +230,10 @@ public class Robot extends TimedRobot {
         rightEncoders = sensorValueLayout.add("Right encoders", 404).getEntry();
         gyroWidget = sensorValueLayout.add("Gyro", 404).getEntry();
         intakeBeamBreakWidget = sensorValueLayout.add("Intake beam break", false)
-            .withWidget(BuiltInWidgets.kBooleanBox)
             .withProperties(Map.of("color when false", "#7E8083", "color when true", "#ffe815")).getEntry();
-        isSpeedModeWidget = sensorValueLayout.add("Speed mode?", false)
-            .withWidget(BuiltInWidgets.kBooleanBox).getEntry();
-        isCamera1Widget = sensorValueLayout.add("Main camera?", true)
-            .withWidget(BuiltInWidgets.kBooleanBox).getEntry();
-        isIntakeUpWidget = sensorValueLayout.add("Is intake up?", true)
-            .withWidget(BuiltInWidgets.kBooleanBox).getEntry();
 
-        //vision
-        blockX = visionLayout.add("blockX", 404).getEntry();
+        //pixy
+        blockX = pixyLayout.add("blockX", 404).getEntry();
 
 
         // Buttons tab
@@ -293,65 +241,65 @@ public class Robot extends TimedRobot {
         ShuffleboardTab buttonTab = Shuffleboard.getTab("Buttons");
 
         ShuffleboardLayout driverButtonsLayout = buttonTab.getLayout("Driver Controller", BuiltInLayouts.kGrid)
-            .withProperties(Map.of("number of columns", 3, "number of rows", 3, "label position", "HIDDEN"))
+            .withProperties(Map.of("number of columns", 3, "number of rows", 3))
             .withPosition(0, 0)
             .withSize(4, 3);
         ShuffleboardLayout operatorButtonsLayout = buttonTab.getLayout("Operator Controller", BuiltInLayouts.kGrid)
-            .withProperties(Map.of("number of columns", 3, "number of rows", 3, "label position", "HIDDEN"))
+            .withProperties(Map.of("number of columns", 4, "number of rows", 3))
             .withPosition(4, 0)
             .withSize(5, 3);
 
         ShuffleboardLayout driverUpperLeftLayout = driverButtonsLayout.getLayout("Driver upper left layout", BuiltInLayouts.kList);
-            driverUpperLeftLayout.add("Left trigger", "LT");
-            driverUpperLeftLayout.add("Left bumper", "LB");
-        driverButtonsLayout.add("Left joystick", "LJ"); //middle left
-        ShuffleboardLayout driverLowerLeftLayout = driverButtonsLayout.getLayout("Driver lower left layout", BuiltInLayouts.kGrid)
-            .withProperties(Map.of("number of columns", 2, "number of rows", 1));
-            driverLowerLeftLayout.add("POV ^", "POV^");
-            driverLowerLeftLayout.add("POV v", "POVv");
+            driverUpperLeftLayout.add("Left trigger", "");
+            driverUpperLeftLayout.add("Left bumper", "Toggle camera");
         ShuffleboardLayout driverUpperMiddleLayout = driverButtonsLayout.getLayout("Driver upper middle layout", BuiltInLayouts.kGrid)
             .withProperties(Map.of("number of columns", 2, "number of rows", 1));
-            driverUpperMiddleLayout.add("Left small", "LS");
-            driverUpperMiddleLayout.add("Right small", "RS");
-        driverButtonsLayout.add("-", "-"); //placeholder for true neutral
-        driverButtonsLayout.add("Right joystick", "RJ"); //lower middle
+            driverUpperMiddleLayout.add("Left small", "");
+            driverUpperMiddleLayout.add("Right small", "");
         ShuffleboardLayout driverUpperRightLayout = driverButtonsLayout.getLayout("Driver upper right layout", BuiltInLayouts.kList);
-            driverUpperRightLayout.add("Right trigger", "RT");
-            driverUpperRightLayout.add("Right bumper", "RB");
+            driverUpperRightLayout.add("Right trigger", "");
+            driverUpperRightLayout.add("Right bumper", "Toggle slow/fast");
+        driverButtonsLayout.add("Left joystick", "Rotation"); //middle left
+        driverButtonsLayout.add("", ""); //placeholder for true neutral
         ShuffleboardLayout driverMiddleRightLayout = driverButtonsLayout.getLayout("Driver middle right layout", BuiltInLayouts.kGrid)
             .withProperties(Map.of("number of columns", 2, "number of rows", 1));
-            driverMiddleRightLayout.add("X", "X");
-            driverMiddleRightLayout.add("Y", "Y");
+            driverMiddleRightLayout.add("X", "");
+            driverMiddleRightLayout.add("Y", "");
+        ShuffleboardLayout driverLowerLeftLayout = driverButtonsLayout.getLayout("Driver lower left layout", BuiltInLayouts.kGrid)
+            .withProperties(Map.of("number of columns", 2, "number of rows", 1));
+            driverLowerLeftLayout.add("/POV", "");
+            driverLowerLeftLayout.add("//POV", "");
+        driverButtonsLayout.add("Right joystick", "Velocity"); //lower middle
         ShuffleboardLayout driverLowerRightLayout = driverButtonsLayout.getLayout("Driver lower right layout", BuiltInLayouts.kGrid)
             .withProperties(Map.of("number of columns", 2, "number of rows", 1));
-            driverLowerRightLayout.add("A", "A");
-            driverLowerRightLayout.add("B", "B");
+            driverLowerRightLayout.add("A", "Intake and vision takeover");
+            driverLowerRightLayout.add("B", "");
 
         ShuffleboardLayout operatorUpperLeftLayout = operatorButtonsLayout.getLayout("Operator upper left layout", BuiltInLayouts.kList);
-            operatorUpperLeftLayout.add("Left trigger", "LT");
-            operatorUpperLeftLayout.add("Left bumper", "LB");
-        operatorButtonsLayout.add("Left joystick", "LJ"); //middle left
-        ShuffleboardLayout operatorLowerLeftLayout = operatorButtonsLayout.getLayout("Operator lower left layout", BuiltInLayouts.kGrid)
-            .withProperties(Map.of("number of columns", 2, "number of rows", 1));
-            operatorLowerLeftLayout.add("POV ^", "POV^");
-            operatorLowerLeftLayout.add("POV v", "POVv");
+            operatorUpperLeftLayout.add("Left trigger", "");
+            operatorUpperLeftLayout.add("Left bumper", "");
         ShuffleboardLayout operatorUpperMiddleLayout = operatorButtonsLayout.getLayout("Operator upper middle layout", BuiltInLayouts.kGrid)
             .withProperties(Map.of("number of columns", 2, "number of rows", 1));
-            operatorUpperMiddleLayout.add("Left small", "LS");
-            operatorUpperMiddleLayout.add("Right small", "RS");
-        operatorButtonsLayout.add("-", "-"); //placeholder for true neutral
-        operatorButtonsLayout.add("Right joystick", "RJ"); //lower middle
+            operatorUpperMiddleLayout.add("Left small", "");
+            operatorUpperMiddleLayout.add("Right small", "");
         ShuffleboardLayout operatorUpperRightLayout = operatorButtonsLayout.getLayout("Operator upper right layout", BuiltInLayouts.kList);
-            operatorUpperRightLayout.add("Right trigger", "RT");
-            operatorUpperRightLayout.add("Right bumper", "RB");
+            operatorUpperRightLayout.add("Right trigger", "Retract climber");
+            operatorUpperRightLayout.add("Right bumper", "Extend climber");
+        operatorButtonsLayout.add("Left joystick", "Intake in/out"); //middle left
+        operatorButtonsLayout.add("", ""); //placeholder for true neutral
         ShuffleboardLayout operatorMiddleRightLayout = operatorButtonsLayout.getLayout("Operator middle right layout", BuiltInLayouts.kGrid)
             .withProperties(Map.of("number of columns", 2, "number of rows", 1));
-            operatorMiddleRightLayout.add("X", "X");
-            operatorMiddleRightLayout.add("Y", "Y");
+            operatorMiddleRightLayout.add("X", "Shooter on/off");
+            operatorMiddleRightLayout.add("Y", "Climber brake toggle");
+        ShuffleboardLayout operatorLowerLeftLayout = operatorButtonsLayout.getLayout("Operator lower left layout", BuiltInLayouts.kGrid)
+            .withProperties(Map.of("number of columns", 2, "number of rows", 1));
+            operatorLowerLeftLayout.add("/POV", "");
+            operatorLowerLeftLayout.add("//POV", "");
+        operatorButtonsLayout.add("Right joystick", "Helix in/out"); //lower middle
         ShuffleboardLayout operatorLowerRightLayout = operatorButtonsLayout.getLayout("Operator lower right layout", BuiltInLayouts.kGrid)
             .withProperties(Map.of("number of columns", 2, "number of rows", 1));
-            operatorLowerRightLayout.add("A", "A");
-            operatorLowerRightLayout.add("B", "B");
+            operatorLowerRightLayout.add("A", "Intake extend/retract");
+            operatorLowerRightLayout.add("B", "");
     }
 
     /**
@@ -365,17 +313,14 @@ public class Robot extends TimedRobot {
         Math.abs(UserInterface.operatorController.getRightJoystickX()) > 0.1 || Math.abs(UserInterface.operatorController.getRightJoystickY()) > 0.1);
 
         //cell count
-        cellCountWidget.setDouble(Subsystems.intake.cellCount);
-        overflowWidget.setBoolean(Subsystems.intake.cellCount > 5);
+        cellCountWidget.setDouble(cellCount);
+        overflowWidget.setBoolean(cellCount > 5);
 
         //sensor values
         leftEncoders.setDouble(Subsystems.driveBase.getLeftPosition());
         rightEncoders.setDouble(Subsystems.driveBase.getRightPosition());
         gyroWidget.setDouble(Subsystems.driveBase.getGyroAngle());
-        intakeBeamBreakWidget.setBoolean(Subsystems.intake.getCellEntered());
-        isSpeedModeWidget.setBoolean(RobotMap.isSpeedMode);
-        isCamera1Widget.setBoolean(RobotMap.isFirstCamera);
-        isIntakeUpWidget.setBoolean(!RobotMap.isIntakeDown);
+        intakeBeamBreakWidget.setBoolean(false); //TODO: change on helix
 
         //pixy values
         try {
@@ -385,40 +330,5 @@ public class Robot extends TimedRobot {
             blockX.setDouble(-404);
             return;
         }
-    }
-
-    /**
-     * Counts cells intaken in auto.
-     */
-    private void countingAuto() {
-        boolean isBroken = Subsystems.intake.getCellEntered();
-
-        if (isBroken && !oldBroken) {
-            Subsystems.intake.cellCount++;
-        }
-        oldBroken = isBroken;
-    }
-
-    /**
-     * Counts cells intaken or expelled in teleop.
-     */
-    private void countingTeleop() {
-        boolean isBroken = Subsystems.intake.getCellEntered();
-
-        if (UserInterface.operatorController.getRightJoystickY() >= 0.4) { //if is intaking
-            if (isBroken && !oldBroken) {
-                Subsystems.intake.cellCount++;
-            } else if (!isBroken && oldBroken) {
-                in = true;
-                counter = 0;
-            }
-        }
-        if (UserInterface.operatorController.getRightJoystickY() <= -0.4) { //if is outtaking
-            if (!isBroken && oldBroken) {
-                Subsystems.intake.cellCount--;
-            }
-        }
-
-        oldBroken = isBroken;
     }
 }
